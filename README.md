@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Spam Detector v0
 
 A full-stack application for detecting spam emails using machine learning.
@@ -92,3 +93,6 @@ npm run build
 ## License
 
 This project is licensed under the MIT License.
+=======
+# Email-spam-detection
+>>>>>>> 7454627ba13d31d4e8e8405261ee0dcbe36adf4c
