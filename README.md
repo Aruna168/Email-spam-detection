@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-# Spam Detector v0
+# Spam Detector
 
 A full-stack application for detecting spam emails using machine learning.
 
