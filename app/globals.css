@@ -71,19 +71,23 @@
 
         setIsLoading(true)
         try {
-          // Get user ID from localStorage
-          const userId = localStorage.getItem('user_id')
+          // Get auth token
+          const token = localStorage.getItem('auth_token')
+          if (!token) {
+            throw new Error('No authentication token found')
+          }
           
           // Make API call to the Flask backend
           const response = await fetch('http://localhost:5000/predict', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
-              messages: [emailContent],
-              user_id: userId
+              message: emailContent // Send single message instead of array
             }),
+            credentials: 'include' // Include credentials for CORS
           })
           
           if (!response.ok) {
@@ -92,17 +96,12 @@
           
           const data = await response.json()
           
-          if (data.predictions && data.predictions.length > 0) {
-            const prediction = data.predictions[0]
-            
+          if (data.prediction) {
             // Format the result for the frontend
             const result = {
-              prediction: prediction.prediction,
-              confidence: prediction.confidence / 100, // Convert from percentage to decimal
-              probabilities: [
-                { label: 'spam', value: prediction.prediction === 'spam' ? prediction.confidence / 100 : 1 - (prediction.confidence / 100) },
-                { label: 'ham', value: prediction.prediction === 'ham' ? prediction.confidence / 100 : 1 - (prediction.confidence / 100) }
-              ]
+              prediction: data.prediction,
+              confidence: data.confidence,
+              probabilities: data.probabilities
             }
             
             // Dispatch an event that the results panel can listen for
@@ -113,7 +112,7 @@
             
             // Show success toast
             toast.success("Email analyzed successfully", {
-              description: `Prediction: ${prediction.prediction} (${prediction.confidence}% confidence)`
+              description: `Prediction: ${data.prediction} (${data.confidence}% confidence)`
             })
           } else {
             throw new Error('Invalid response format from API')
@@ -123,13 +122,13 @@
           
           // Dispatch error event
           const event = new CustomEvent("apiError", { 
-            detail: { message: "Failed to analyze email. Please check if the backend server is running." } 
+            detail: { message: error.message || "Failed to analyze email. Please check if the backend server is running." } 
           })
           window.dispatchEvent(event)
           
           // Show error toast
           toast.error("Failed to analyze email", {
-            description: "Please check if the backend server is running."
+            description: error.message || "Please check if the backend server is running."
           })
         } finally {
           setIsLoading(false)

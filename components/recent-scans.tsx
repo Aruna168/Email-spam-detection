@@ -7,9 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { isAuthenticated } from "@/lib/api"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { SimplifiedAuth } from "./simplified-auth"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { toast } from "sonner"
+import { makeApiRequest } from "@/lib/api"
 
 interface ScanHistoryItem {
   id: string;
@@ -25,47 +25,21 @@ export function RecentScans() {
   const [error, setError] = useState<string | null>(null)
   const [selectedScan, setSelectedScan] = useState<ScanHistoryItem | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
-  const [isAuth, setIsAuth] = useState(false)
-  const [authDialogOpen, setAuthDialogOpen] = useState(false)
+  const [downloading, setDownloading] = useState<string | null>(null)
 
-  const loadScanHistory = async () => {
+  const loadScanHistory = () => {
     try {
-      setLoading(true)
-      setError(null)
-      
-      // Check if user is authenticated
-      const authenticated = isAuthenticated()
-      setIsAuth(authenticated)
-      
-      if (!authenticated) {
-        setLoading(false)
-        return
-      }
-      
-      // Get user ID from localStorage
-      const userId = localStorage.getItem('user_id')
-      
-      if (!userId) {
-        setError("User ID not found")
-        setLoading(false)
-        return
-      }
-      
-      // Get scan history from localStorage
-      const history = JSON.parse(localStorage.getItem('scan_history') || '{}')
-      
-      if (history[userId]) {
-        setScans(history[userId])
-      } else {
-        setScans([])
-      }
-    } catch (error) {
-      console.error("Error fetching scan history:", error)
-      setError("Failed to load scan history. Please try again later.")
-    } finally {
-      setLoading(false)
+      const userId = "demo"; // Use demo user for now
+      const reports = JSON.parse(localStorage.getItem('bulk_reports') || '{}');
+      const userScans = reports[userId] || [];
+      setScans(userScans);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error loading scan history:', err);
+      setError('Failed to load scan history');
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
     loadScanHistory()
@@ -87,11 +61,6 @@ export function RecentScans() {
     setDetailsOpen(true)
   }
 
-  const handleAuthSuccess = () => {
-    setAuthDialogOpen(false)
-    loadScanHistory()
-  }
-
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString)
@@ -101,30 +70,40 @@ export function RecentScans() {
     }
   }
 
-  if (!isAuth) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 text-center">
-        <AlertCircle className="h-12 w-12 text-amber-500 mb-4" />
-        <h3 className="text-lg font-medium mb-2">Authentication Required</h3>
-        <p className="text-muted-foreground mb-4">
-          Please login or register to view your scan history
-        </p>
-        <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-indigo-600 hover:bg-indigo-700">Login / Register</Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Authentication</DialogTitle>
-              <DialogDescription>
-                Login or create an account to access your scan history
-              </DialogDescription>
-            </DialogHeader>
-            <SimplifiedAuth onAuthSuccess={handleAuthSuccess} />
-          </DialogContent>
-        </Dialog>
-      </div>
-    )
+  const handleDownload = async (scan: ScanHistoryItem) => {
+    try {
+      setDownloading(scan.id)
+      
+      // Create CSV content
+      const csvContent = [
+        ["Scan ID", "Timestamp", "Prediction", "Confidence", "Email Content"],
+        [
+          scan.id,
+          scan.timestamp,
+          scan.prediction,
+          `${scan.confidence}%`,
+          `"${scan.message.replace(/"/g, '""')}"` // Escape quotes for CSV
+        ]
+      ].map(row => row.join(",")).join("\n")
+
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.setAttribute("href", url)
+      link.setAttribute("download", `scan_report_${scan.id.substring(0, 8)}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      toast.success("Report downloaded successfully")
+    } catch (error) {
+      console.error("Error downloading report:", error)
+      toast.error("Failed to download report")
+    } finally {
+      setDownloading(null)
+    }
   }
 
   if (loading) {
@@ -205,9 +184,18 @@ export function RecentScans() {
                         <FileText className="mr-2 h-4 w-4" />
                         <span>View Details</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Download className="mr-2 h-4 w-4" />
-                        <span>Download Report</span>
+                      <DropdownMenuItem 
+                        onClick={() => handleDownload(scan)}
+                        disabled={downloading === scan.id}
+                      >
+                        {downloading === scan.id ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="mr-2 h-4 w-4" />
+                        )}
+                        <span>
+                          {downloading === scan.id ? "Downloading..." : "Download Report"}
+                        </span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

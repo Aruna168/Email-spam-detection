@@ -8,15 +8,15 @@ import { Progress } from "@/components/ui/progress"
 
 interface AnalysisResult {
   prediction: string
-  confidence: number
-  probabilities: Array<{ label: string; value: number }>
+  confidence: number // This is now a percentage (0-100)
+  word_influence: Array<{ word: string; influence: number }>
 }
 
 export function ResultsPanel() {
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [model, setModel] = useState<string>("Multinomial Naive Bayes")
+  const [model, setModel] = useState<string>("Enhanced Naive Bayes")
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking')
 
   useEffect(() => {
@@ -25,7 +25,6 @@ export function ResultsPanel() {
       setResult(event.detail.result)
       setModel(event.detail.model)
       setError(null)
-      // If we successfully got a result, the API must be online
       setApiStatus('online')
     }
 
@@ -33,18 +32,14 @@ export function ResultsPanel() {
     const handleApiError = (event: CustomEvent<{ message: string }>) => {
       setError(event.detail.message)
       setResult(null)
-      // If we got an API error, the API might be offline
       setApiStatus('offline')
     }
 
-    // Add event listeners
     window.addEventListener("emailAnalyzed", handleEmailAnalyzed as EventListener)
     window.addEventListener("apiError", handleApiError as EventListener)
 
-    // Check API health on component mount, but don't block rendering
     const checkApiHealth = async () => {
       try {
-        // Dynamically import to avoid SSR issues
         const apiModule = await import("@/lib/api")
         const isHealthy = await apiModule.checkApiHealth()
         setApiStatus(isHealthy ? 'online' : 'offline')
@@ -59,12 +54,10 @@ export function ResultsPanel() {
       }
     }
     
-    // Use a timeout to delay the health check slightly
     const timer = setTimeout(() => {
       checkApiHealth()
     }, 1000)
 
-    // Clean up event listeners and timer
     return () => {
       window.removeEventListener("emailAnalyzed", handleEmailAnalyzed as EventListener)
       window.removeEventListener("apiError", handleApiError as EventListener)
@@ -74,33 +67,49 @@ export function ResultsPanel() {
 
   return (
     <Card className="h-full">
-      <CardHeader>
-        <CardTitle>Analysis Results</CardTitle>
-        <CardDescription>
+      <CardHeader className="pb-4">
+        <CardTitle className="text-xl">Analysis Results</CardTitle>
+        <CardDescription className="text-sm text-muted-foreground">
           Spam detection results will appear here after analysis.
-          {apiStatus === 'checking' && " Checking API status..."}
-          {apiStatus === 'offline' && " API is currently offline."}
-          {apiStatus === 'online' && " API is online and ready."}
+          {apiStatus === 'checking' && (
+            <span className="ml-1 text-yellow-600 dark:text-yellow-400">
+              Checking API status...
+            </span>
+          )}
+          {apiStatus === 'offline' && (
+            <span className="ml-1 text-red-600 dark:text-red-400">
+              API is currently offline.
+            </span>
+          )}
+          {apiStatus === 'online' && (
+            <span className="ml-1 text-green-600 dark:text-green-400">
+              API is online and ready.
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col items-center justify-center h-[300px]">
+      <CardContent className="flex flex-col items-center justify-center min-h-[300px] p-6">
         {loading ? (
           <div className="flex flex-col items-center justify-center space-y-4">
             <Loader2 className="h-12 w-12 animate-spin text-indigo-600" />
             <p className="text-lg font-medium">Analyzing email content...</p>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center space-y-4 text-center">
+          <div className="flex flex-col items-center justify-center space-y-4 text-center max-w-md">
             <AlertCircle className="h-12 w-12 text-red-500" />
             <div>
-              <p className="text-lg font-medium">Error</p>
-              <p className="text-muted-foreground">{error}</p>
+              <p className="text-lg font-medium mb-2">Error</p>
+              <p className="text-muted-foreground text-sm">{error}</p>
               {apiStatus === 'offline' && (
-                <div className="mt-4 text-sm">
-                  <p>To start the Flask server, run:</p>
-                  <pre className="bg-gray-100 p-2 rounded mt-2">npm run backend</pre>
-                  <p className="mt-2">Or directly with Python:</p>
-                  <pre className="bg-gray-100 p-2 rounded mt-2">python app.py</pre>
+                <div className="mt-6 text-sm bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
+                  <p className="font-medium mb-2">To start the Flask server, run:</p>
+                  <pre className="bg-slate-100 dark:bg-slate-800 p-2 rounded mb-2 text-xs">
+                    npm run backend
+                  </pre>
+                  <p className="font-medium mb-2">Or directly with Python:</p>
+                  <pre className="bg-slate-100 dark:bg-slate-800 p-2 rounded text-xs">
+                    python app.py
+                  </pre>
                 </div>
               )}
             </div>
@@ -109,52 +118,68 @@ export function ResultsPanel() {
           <div className="flex flex-col items-center justify-center space-y-4 text-center">
             <Clock className="h-12 w-12 text-muted-foreground" />
             <div>
-              <p className="text-lg font-medium">No Analysis Yet</p>
-              <p className="text-muted-foreground">Submit an email to see results</p>
+              <p className="text-lg font-medium mb-1">No Analysis Yet</p>
+              <p className="text-muted-foreground text-sm">Submit an email to see results</p>
             </div>
           </div>
         ) : (
-          <div className="w-full space-y-6">
-            <div className="flex flex-col items-center space-y-2">
+          <div className="w-full space-y-8">
+            <div className="flex flex-col items-center space-y-4">
               {result.prediction === "spam" ? (
                 <AlertCircle className="h-12 w-12 text-red-500" />
               ) : (
                 <CheckCircle2 className="h-12 w-12 text-green-500" />
               )}
-              <h3 className="text-2xl font-bold">
-                {result.prediction === "spam" ? "Spam Detected" : "Ham (Not Spam)"}
-              </h3>
-              <p className="text-muted-foreground">
-                Model: {model}
-              </p>
+              <div className="text-center">
+                <h3 className="text-2xl font-bold mb-2">
+                  {result.prediction === "spam" ? "Spam Detected" : "Ham (Not Spam)"}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Model: {model}
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between">
+            <div className="space-y-3 max-w-md mx-auto">
+              <div className="flex justify-between items-center mb-1">
                 <span className="text-sm font-medium">Confidence</span>
-                <span className="text-sm font-medium">{Math.round(result.confidence * 100)}%</span>
+                <span className="text-sm font-medium">{result.confidence.toFixed(2)}%</span>
               </div>
               <Progress
-                value={result.confidence * 100}
-                className={result.prediction === "spam" ? "bg-red-100" : "bg-green-100"}
+                value={result.confidence}
+                className={`h-2 ${
+                  result.prediction === "spam" 
+                    ? "bg-red-100 [&>[data-state=completed]]:bg-red-500" 
+                    : "bg-green-100 [&>[data-state=completed]]:bg-green-500"
+                }`}
               />
             </div>
 
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium">Probability Distribution</h4>
-              <div className="space-y-1">
-                {result.probabilities?.map((prob) => (
-                  <div key={prob.label} className="flex justify-between">
-                    <span className="text-sm">{prob.label}</span>
-                    <span className="text-sm font-medium">{Math.round(prob.value * 100)}%</span>
-                  </div>
-                ))}
+            {result.word_influence && result.word_influence.length > 0 && (
+              <div className="space-y-4 max-w-md mx-auto">
+                <h4 className="text-sm font-medium mb-3">Top Influential Words</h4>
+                <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4">
+                  {result.word_influence.slice(0, 5).map((word, index) => (
+                    <div 
+                      key={word.word} 
+                      className={`
+                        flex justify-between items-center py-2
+                        ${index !== 0 ? "border-t border-slate-200 dark:border-slate-700" : ""}
+                      `}
+                    >
+                      <span className="text-sm font-medium">{word.word}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {word.influence.toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </CardContent>
-      <CardFooter className="text-xs text-muted-foreground">
+      <CardFooter className="text-xs text-muted-foreground bg-slate-50 dark:bg-slate-900 rounded-b-lg px-6 py-4">
         Results are based on machine learning models and may not be 100% accurate.
       </CardFooter>
     </Card>

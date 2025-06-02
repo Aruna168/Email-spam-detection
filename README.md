@@ -1,98 +1,86 @@
-<<<<<<< HEAD
-# Spam Detector v0
+# Spam Detector Application
 
-A full-stack application for detecting spam emails using machine learning.
+This application provides email spam detection capabilities with both single email analysis and bulk analysis features.
 
-## Project Structure
+## Architecture
 
-- **Frontend**: Next.js application with React components
-- **Backend**: Flask API with Python and scikit-learn
-- **ML Models**: Pre-trained models for spam detection
+The application consists of two main components:
+
+1. **Frontend**: A Next.js application that provides the user interface
+2. **Backend**: A Flask server that handles the spam detection logic and API endpoints
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v16+)
-- Python 3.8+
-- npm or yarn
+- Python 3.7+ with pip
+- Node.js and npm
 
 ### Installation
 
-1. Clone the repository
-2. Install frontend dependencies:
+1. Install Python dependencies:
+   ```
+   pip install flask flask-cors flask-jwt-extended pandas scikit-learn matplotlib seaborn
+   ```
 
-```bash
-npm install
-```
+2. Install Node.js dependencies:
+   ```
+   npm install
+   ```
 
-3. Install backend dependencies:
+### Starting the Application
 
-```bash
-pip install -r requirements.txt
-```
+#### Option 1: Using the start script
 
-### Running the Application
+Run the `start_app.bat` file by double-clicking it. This will:
+- Start the Flask backend server on port 5000
+- Wait for the backend to initialize
+- Start the Next.js frontend on port 3000
 
-1. Start the Flask backend server:
+#### Option 2: Manual startup
 
-```bash
-# From the project root
-npm run backend
-# Or directly with Python
-python app.py
-```
+1. Start the Flask backend:
+   ```
+   python app.py
+   ```
 
-2. In a separate terminal, start the frontend development server:
+2. In a separate terminal, start the Next.js frontend:
+   ```
+   npm run dev
+   ```
 
-```bash
-# From the project root
-npm run dev
-```
+## Using the Application
 
-3. Open your browser and navigate to `http://localhost:3000`
+1. Open your browser and navigate to http://localhost:3000
+2. You can analyze individual emails or upload files for bulk analysis
+3. For bulk analysis, you can upload .txt files (one email per line) or .csv files
 
 ## Troubleshooting
 
-### API Connection Issues
+### "TypeError: Failed to fetch" Error
 
-If you see "API Status: Offline" or "Failed to fetch" errors:
+This error occurs when the frontend cannot connect to the backend server. To fix:
 
-1. Make sure the Flask server is running with `npm run backend`
-2. Check that the Flask server is running on port 5000
-3. Verify that CORS is properly configured in the Flask app
-4. Check browser console for specific error messages
+1. Make sure the Flask backend is running on port 5000
+2. Check if there are any error messages in the terminal where the backend is running
+3. Ensure your firewall is not blocking the connection
+4. Try restarting both servers
 
-### Common Issues
+### Individual Email Analysis Works But Bulk Analysis Doesn't
 
-- **CORS Errors**: The Flask server includes CORS headers, but you may need to adjust them if you're running the frontend on a different port.
-- **Port Conflicts**: If port 5000 is already in use, you'll need to change the port in `app.py` and update the `.env.local` file.
-- **Missing Dependencies**: Make sure all Python dependencies are installed with `pip install -r requirements.txt`.
+The individual email analysis uses client-side processing when the server is unavailable, while bulk analysis requires the backend server. Make sure:
 
-## API Endpoints
+1. The Flask server is running
+2. You're logged in (bulk analysis requires authentication)
+3. The file format is correct (.txt with one email per line or .csv)
 
-- `GET /` - Health check endpoint
-- `GET /word-stats` - Get statistics about influential words in spam detection
-- `POST /predict` - Analyze a message for spam content
+## How It Works
 
-## Environment Variables
+- **Individual Email Analysis**: The application can analyze emails using both client-side JavaScript and the backend API
+- **Bulk Analysis**: For analyzing multiple emails at once, the application uses the backend API for processing and visualization generation
 
-Create a `.env.local` file in the project root with the following variables:
+## Development
 
-```
-NEXT_PUBLIC_API_URL=http://localhost:5000
-```
-
-## Building for Production
-
-```bash
-# Build the frontend
-npm run build
-```
-
-## License
-
-This project is licensed under the MIT License.
-=======
-# Email-spam-detection
->>>>>>> 7454627ba13d31d4e8e8405261ee0dcbe36adf4c
+- Frontend code is in the `components` directory
+- Backend code is in `app.py` and the `spam-detection-backend` directory
+- Models are stored as pickle files in the root directory

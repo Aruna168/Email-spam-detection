@@ -36,64 +36,112 @@ const defaultHamWords = [
   { word: "thanks", weight: 40 }
 ];
 
+interface ScanResult {
+  prediction: 'spam' | 'ham';
+  message: string;
+  wordInfluence: Array<{
+    word: string;
+    influence: number;
+  }>;
+  confidence: number;
+  timestamp: string;
+}
+
 export function ModelInsights() {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [retrying, setRetrying] = useState(false)
-  const [isAuth, setIsAuth] = useState(false)
-  const [authDialogOpen, setAuthDialogOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<'general' | 'specific'>('general')
-  const [latestScan, setLatestScan] = useState<any>(null)
+  const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
+  const [mostRecentScan, setMostRecentScan] = useState<ScanResult | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'general' | 'specific'>('general');
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadScanHistory = () => {
       try {
-        setLoading(true)
-        setError(null)
+        setIsLoading(true);
+        let allScans: ScanResult[] = [];
         
-        // Check if user is authenticated
-        const authenticated = isAuthenticated()
-        setIsAuth(authenticated)
-        
-        if (authenticated) {
-          // Get user ID from localStorage
-          const userId = localStorage.getItem('user_id')
-          
-          if (userId) {
-            // Get scan history from localStorage
-            const history = JSON.parse(localStorage.getItem('scan_history') || '{}')
-            
-            if (history[userId] && history[userId].length > 0) {
-              // Get the most recent scan
-              setLatestScan(history[userId][0])
+        // Load individual scans
+        const storedHistory = localStorage.getItem('scan_history');
+        if (storedHistory) {
+          try {
+            const history = JSON.parse(storedHistory);
+            // Ensure history is an array
+            if (Array.isArray(history)) {
+              allScans = [...allScans, ...history];
+            } else if (typeof history === 'object') {
+              // If it's a single scan object, add it to the array
+              allScans.push(history as ScanResult);
             }
+          } catch (parseError) {
+            console.error('Error parsing scan history:', parseError);
+          }
+        }
+
+        // Load from bulk_reports if available
+        const bulkReports = localStorage.getItem('bulk_reports');
+        if (bulkReports) {
+          try {
+            const reports = JSON.parse(bulkReports);
+            const demoReports = reports['demo'] || [];
+            if (Array.isArray(demoReports)) {
+              const bulkScans = demoReports.map((report: any) => ({
+                prediction: report.prediction,
+                message: report.message,
+                wordInfluence: report.word_influence || [],
+                confidence: report.confidence,
+                timestamp: report.timestamp || new Date().toISOString()
+              }));
+              allScans = [...allScans, ...bulkScans];
+            }
+          } catch (parseError) {
+            console.error('Error parsing bulk reports:', parseError);
           }
         }
         
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 500))
+        // Sort by timestamp, most recent first
+        allScans.sort((a, b) => {
+          const dateA = new Date(a.timestamp || 0).getTime();
+          const dateB = new Date(b.timestamp || 0).getTime();
+          return dateB - dateA;
+        });
+        
+        setScanHistory(allScans);
+        
+        // Set most recent scan if available
+        if (allScans.length > 0) {
+          const recentScan = allScans[0];
+          // Ensure wordInfluence is properly formatted
+          if (recentScan.wordInfluence) {
+            recentScan.wordInfluence = recentScan.wordInfluence.map(item => ({
+              word: item.word,
+              influence: typeof item.influence === 'number' ? item.influence : parseFloat(item.influence)
+            }));
+          }
+          setMostRecentScan(recentScan);
+        }
       } catch (error) {
-        console.error("Error loading model insights:", error)
-        setError("Failed to load model insights. Please try again later.")
+        console.error('Error loading scan history:', error);
+        setError('Failed to load scan history');
       } finally {
-        setLoading(false)
-        setRetrying(false)
+        setIsLoading(false);
       }
-    }
-    
-    loadData()
-    
+    };
+
+    // Load initial data
+    loadScanHistory();
+
     // Listen for new scans
     const handleNewScan = () => {
-      loadData()
-    }
-    
-    window.addEventListener('emailAnalyzed', handleNewScan)
-    
+      loadScanHistory();
+    };
+
+    window.addEventListener('newScan', handleNewScan);
+    window.addEventListener('emailAnalyzed', handleNewScan);
     return () => {
-      window.removeEventListener('emailAnalyzed', handleNewScan)
-    }
-  }, [])
+      window.removeEventListener('newScan', handleNewScan);
+      window.removeEventListener('emailAnalyzed', handleNewScan);
+    };
+  }, []);
 
   // Prepare data for charts
   const prepareChartData = (words: any[], limit: number = 10) => {
@@ -106,11 +154,10 @@ export function ModelInsights() {
       .sort((a, b) => a.weight - b.weight)
   }
 
-  const prepareScanInsightData = (words: any[] = [], limit: number = 10) => {
-    if (!words || words.length === 0) return []
+  const prepareScanInsightData = (wordInfluence: ScanResult['wordInfluence']) => {
+    if (!wordInfluence || wordInfluence.length === 0) return [];
     
-    return words
-      .slice(0, limit)
+    return wordInfluence
       .map(item => ({
         word: item.word,
         influence: typeof item.influence === 'number' ? 
@@ -118,60 +165,15 @@ export function ModelInsights() {
           parseFloat((item.influence * 100).toFixed(2))
       }))
       .sort((a, b) => Math.abs(b.influence) - Math.abs(a.influence))
+      .slice(0, 10); // Show top 10 most influential words
   }
 
-  const handleRetry = () => {
-    setRetrying(true)
-    // Reload data
-    const loadData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        
-        // Check if user is authenticated
-        const authenticated = isAuthenticated()
-        setIsAuth(authenticated)
-        
-        if (authenticated) {
-          // Get user ID from localStorage
-          const userId = localStorage.getItem('user_id')
-          
-          if (userId) {
-            // Get scan history from localStorage
-            const history = JSON.parse(localStorage.getItem('scan_history') || '{}')
-            
-            if (history[userId] && history[userId].length > 0) {
-              // Get the most recent scan
-              setLatestScan(history[userId][0])
-            }
-          }
-        }
-        
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 500))
-      } catch (error) {
-        console.error("Error loading model insights:", error)
-        setError("Failed to load model insights. Please try again later.")
-      } finally {
-        setLoading(false)
-        setRetrying(false)
-      }
-    }
-    
-    loadData()
-  }
-
-  const handleAuthSuccess = () => {
-    setAuthDialogOpen(false)
-    handleRetry()
-  }
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -180,22 +182,14 @@ export function ModelInsights() {
         <AlertCircle className="h-8 w-8 mb-2" />
         <p className="text-center mb-4">{error}</p>
         <Button 
-          onClick={handleRetry} 
-          disabled={retrying}
+          onClick={() => window.location.reload()} 
           variant="outline"
           className="bg-white"
         >
-          {retrying ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Retrying...
-            </>
-          ) : (
-            'Retry'
-          )}
+          Retry
         </Button>
       </div>
-    )
+    );
   }
 
   return (
@@ -203,10 +197,9 @@ export function ModelInsights() {
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'general' | 'specific')} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="general">General Model Insights</TabsTrigger>
-          <TabsTrigger value="specific" disabled={!isAuth || !latestScan}>
+          <TabsTrigger value="specific" disabled={!mostRecentScan}>
             Your Latest Scan Insights
-            {!isAuth && <span className="ml-2 text-xs">(Login Required)</span>}
-            {isAuth && !latestScan && <span className="ml-2 text-xs">(No Scans)</span>}
+            {!mostRecentScan && <span className="ml-2 text-xs">(No Scans)</span>}
           </TabsTrigger>
         </TabsList>
         
@@ -225,7 +218,21 @@ export function ModelInsights() {
                     <XAxis type="number" domain={[0, 100]} />
                     <YAxis type="category" dataKey="word" />
                     <Tooltip formatter={(value) => [`${value}%`, "Weight"]} />
-                    <Legend />
+                    <Legend
+                      content={({ payload }) => (
+                        <ul className="flex flex-wrap gap-4 mt-4">
+                          {payload?.map((entry, index) => (
+                            <li key={`item-${index}`} className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: entry.color }}
+                              />
+                              <span className="text-sm text-gray-600">{entry.value}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    />
                     <Bar dataKey="weight" name="Influence %" fill="#ef4444" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -245,7 +252,21 @@ export function ModelInsights() {
                     <XAxis type="number" domain={[0, 100]} />
                     <YAxis type="category" dataKey="word" />
                     <Tooltip formatter={(value) => [`${value}%`, "Weight"]} />
-                    <Legend />
+                    <Legend
+                      content={({ payload }) => (
+                        <ul className="flex flex-wrap gap-4 mt-4">
+                          {payload?.map((entry, index) => (
+                            <li key={`item-${index}`} className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: entry.color }}
+                              />
+                              <span className="text-sm text-gray-600">{entry.value}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    />
                     <Bar dataKey="weight" name="Influence %" fill="#22c55e" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -262,47 +283,29 @@ export function ModelInsights() {
         </TabsContent>
         
         <TabsContent value="specific" className="mt-4">
-          {!isAuth ? (
-            <div className="flex flex-col items-center justify-center p-8 text-center">
-              <AlertCircle className="h-12 w-12 text-amber-500 mb-4" />
-              <h3 className="text-lg font-medium mb-2">Authentication Required</h3>
-              <p className="text-muted-foreground mb-4">
-                Please login or register to view specific insights for your scans
-              </p>
-              <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-indigo-600 hover:bg-indigo-700">Login / Register</Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Authentication</DialogTitle>
-                    <DialogDescription>
-                      Login or create an account to access scan insights
-                    </DialogDescription>
-                  </DialogHeader>
-                  <SimplifiedAuth onAuthSuccess={handleAuthSuccess} />
-                </DialogContent>
-              </Dialog>
-            </div>
-          ) : latestScan ? (
+          {mostRecentScan ? (
             <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-medium mb-2">Latest Scan Analysis</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Showing insights for your most recent scan: {latestScan.prediction === "spam" ? "Spam Detected" : "Ham (Not Spam)"}
+                  Showing insights for your most recent scan: {mostRecentScan.prediction === "spam" ? "Spam Detected" : "Ham (Not Spam)"}
                 </p>
                 
-                <div className="p-3 bg-muted rounded-md text-sm mb-6">
-                  <strong>Email snippet:</strong> {latestScan.message.substring(0, 100)}...
-                </div>
+                {mostRecentScan.message && (
+                  <div className="p-3 bg-muted rounded-md text-sm mb-6">
+                    <strong>Email snippet:</strong> {mostRecentScan.message.length > 100 
+                      ? `${mostRecentScan.message.substring(0, 100)}...` 
+                      : mostRecentScan.message}
+                  </div>
+                )}
                 
-                {latestScan.wordInfluence && latestScan.wordInfluence.length > 0 ? (
+                {mostRecentScan.wordInfluence && mostRecentScan.wordInfluence.length > 0 ? (
                   <>
                     <h4 className="text-md font-medium mb-3">Word Influence Analysis</h4>
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
-                          data={prepareScanInsightData(latestScan.wordInfluence)}
+                          data={prepareScanInsightData(mostRecentScan.wordInfluence)}
                           layout="vertical"
                           margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
                         >
@@ -315,15 +318,30 @@ export function ModelInsights() {
                           <YAxis type="category" dataKey="word" />
                           <Tooltip 
                             formatter={(value) => {
-                              const absValue = Math.abs(Number(value))
-                              return [`${absValue}%`, Number(value) >= 0 ? "Spam Indicator" : "Ham Indicator"]
+                              const absValue = Math.abs(Number(value));
+                              return [`${absValue}%`, Number(value) >= 0 ? "Spam Indicator" : "Ham Indicator"];
                             }} 
                           />
-                          <Legend />
+                          <Legend
+                            content={({ payload }) => (
+                              <ul className="flex flex-wrap gap-4 mt-4">
+                                {payload?.map((entry, index) => (
+                                  <li key={`item-${index}`} className="flex items-center gap-2">
+                                    <div
+                                      className="w-3 h-3 rounded-full"
+                                      style={{ backgroundColor: entry.color }}
+                                    />
+                                    <span className="text-sm text-gray-600">{entry.value}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          />
                           <Bar 
                             dataKey="influence" 
                             name="Word Influence" 
-                            fill={(data) => data.influence >= 0 ? "#ef4444" : "#22c55e"}
+                            fill="#8884d8"
+                            fillOpacity={0.8}
                           />
                         </BarChart>
                       </ResponsiveContainer>
@@ -351,5 +369,5 @@ export function ModelInsights() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

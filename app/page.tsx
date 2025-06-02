@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { BarChart3, Bell, FileText, Home, LogOut, Mail, Moon, Settings, Shield, Sun, User as UserIcon } from "lucide-react"
+import { BarChart3, Bell, FileText, Home, Loader2, LogOut, Mail, Moon, Settings, Shield, Sun, User as UserIcon, Upload } from "lucide-react"
 import { useTheme } from "next-themes"
+import dynamic from "next/dynamic"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -28,7 +29,7 @@ import { ResultsPanel } from "@/components/results-panel"
 import { TechnologyCards } from "@/components/technology-cards"
 import { SimplifiedAuth } from "@/components/simplified-auth"
 import { PrivacyPolicyDialog } from "@/components/privacy-policy-dialog"
-import { isAuthenticated, removeToken } from "@/lib/api"
+import { isAuthenticated, removeAuthToken } from "@/lib/api"
 import { toast } from "sonner"
 
 export default function Dashboard() {
@@ -100,7 +101,7 @@ export default function Dashboard() {
   }
 
   const handleLogout = () => {
-    removeToken()
+    removeAuthToken()
     localStorage.removeItem("user_data")
     localStorage.removeItem("user_id")
     setUser(null)
@@ -128,27 +129,36 @@ export default function Dashboard() {
             <span className="text-xl font-bold">SpamShield AI</span>
           </div>
           <nav className="hidden md:flex items-center gap-6">
-            <Link
-              href="#"
+            <button
+              onClick={() => {
+                const tab = document.querySelector('[role="tab"][value="history"]');
+                if (tab) (tab as HTMLElement).click();
+              }}
               className="text-sm font-medium flex items-center gap-2 text-muted-foreground hover:text-foreground"
             >
               <Home className="h-4 w-4" />
               Dashboard
-            </Link>
-            <Link
-              href="#"
+            </button>
+            <button
+              onClick={() => {
+                const tab = document.querySelector('[role="tab"][value="bulk"]');
+                if (tab) (tab as HTMLElement).click();
+              }}
               className="text-sm font-medium flex items-center gap-2 text-muted-foreground hover:text-foreground"
             >
-              <FileText className="h-4 w-4" />
-              History
-            </Link>
-            <Link
-              href="#"
+              <Upload className="h-4 w-4" />
+              Bulk Analysis
+            </button>
+            <button
+              onClick={() => {
+                const tab = document.querySelector('[role="tab"][value="insights"]');
+                if (tab) (tab as HTMLElement).click();
+              }}
               className="text-sm font-medium flex items-center gap-2 text-muted-foreground hover:text-foreground"
             >
               <BarChart3 className="h-4 w-4" />
               Analytics
-            </Link>
+            </button>
           </nav>
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" className="relative">
@@ -227,8 +237,9 @@ export default function Dashboard() {
           </div>
 
           <Tabs defaultValue="history" className="w-full">
-            <TabsList className="grid w-full md:w-auto grid-cols-3">
+            <TabsList className="grid w-full md:w-auto grid-cols-4">
               <TabsTrigger value="history">Scan History</TabsTrigger>
+              <TabsTrigger value="bulk">Bulk Analysis</TabsTrigger>
               <TabsTrigger value="insights">Model Insights</TabsTrigger>
               <TabsTrigger value="technology">Technology</TabsTrigger>
             </TabsList>
@@ -243,6 +254,18 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </TabsContent>
+            <TabsContent value="bulk" className="mt-4">
+              {(() => {
+                const BulkAnalysisTab = dynamic(() => import("@/components/bulk-analysis-tab-fixed").then(mod => mod.BulkAnalysisTab), {
+                  loading: () => <div className="p-8 text-center">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                    <p>Loading bulk analysis...</p>
+                  </div>,
+                  ssr: false
+                });
+                return <BulkAnalysisTab />;
+              })()}
+            </TabsContent>
             <TabsContent value="insights" className="mt-4">
               <Card>
                 <CardHeader>
@@ -253,6 +276,15 @@ export default function Dashboard() {
                   <ModelInsights />
                 </CardContent>
               </Card>
+              
+              {/* Debug Visualizations Tool */}
+              {(() => {
+                const DebugVisualizations = dynamic(() => import("@/components/debug-visualizations").then(mod => mod.DebugVisualizations), {
+                  loading: () => <p>Loading debug tool...</p>,
+                  ssr: false
+                });
+                return <div className="mt-6"><DebugVisualizations /></div>;
+              })()}
             </TabsContent>
             <TabsContent value="technology" className="mt-4">
               <Card>
@@ -274,7 +306,7 @@ export default function Dashboard() {
         <div className="container flex flex-col md:h-16 md:flex-row md:items-center md:justify-between">
           <p className="text-sm text-muted-foreground">© 2025 SpamShield AI. All rights reserved.</p>
           <div className="mt-4 md:mt-0 flex items-center gap-4">
-            <Link href="https://github.com/spamshield-ai" target="_blank" className="text-sm text-muted-foreground hover:text-foreground">
+            <Link href="https://github.com/Aruna168/Email-spam-detection" target="_blank" className="text-sm text-muted-foreground hover:text-foreground">
               GitHub
             </Link>
             <Link href="mailto:contact@spamshield-ai.example.com" className="text-sm text-muted-foreground hover:text-foreground">

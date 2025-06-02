@@ -25,7 +25,7 @@ with tab1:
         message = data['Message'].apply(str)  # Convert messages to string
 
         # Send data to the backend for spam detection
-        url = "http://localhost:5000/api/predict"  # Backend API URL
+        url = "http://localhost:5001/api/predict"  # Backend API URL
         response = requests.post(url, json={"messages": message.tolist()})
 
         if response.status_code == 200:

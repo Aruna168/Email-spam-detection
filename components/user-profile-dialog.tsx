@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { useState, useEffect } from "react"
 import { Loader2, Mail, User as UserIcon } from "lucide-react"
 
@@ -32,17 +33,62 @@ export function UserProfileDialog({ triggerButton }: UserProfileDialogProps) {
           
           // Get user data from localStorage
           const storedUserData = localStorage.getItem("user_data")
+          let userId: string | null = null;
+          let possibleKeys: string[] = ["demo"];
           if (storedUserData) {
             const parsedUserData = JSON.parse(storedUserData)
             setUserData(parsedUserData)
-            
-            // Mock scan statistics
-            setStats({
-              totalScans: Math.floor(Math.random() * 20) + 5,
-              spamDetected: Math.floor(Math.random() * 10) + 1,
-              lastScan: new Date().toLocaleDateString()
-            })
+            if (parsedUserData.email) possibleKeys.push(String(parsedUserData.email));
+            if (parsedUserData.id) possibleKeys.push(String(parsedUserData.id));
           }
+
+          // Try to load scan stats from bulk_reports or scan_history using the first key with data
+          let scans: any[] = [];
+          let foundKey = null;
+          const bulkReports = localStorage.getItem('bulk_reports');
+          if (bulkReports) {
+            try {
+              const reports = JSON.parse(bulkReports);
+              for (const key of possibleKeys) {
+                if (reports[key] && Array.isArray(reports[key]) && reports[key].length > 0) {
+                  scans = reports[key];
+                  foundKey = key;
+                  break;
+                }
+              }
+            } catch (e) { /* ignore */ }
+          }
+
+          // If not found, try scan_history
+          if (scans.length === 0) {
+            const scanHistory = localStorage.getItem('scan_history');
+            if (scanHistory) {
+              try {
+                const history = JSON.parse(scanHistory);
+                for (const key of possibleKeys) {
+                  if (history[key] && Array.isArray(history[key]) && history[key].length > 0) {
+                    scans = history[key];
+                    foundKey = key;
+                    break;
+                  }
+                }
+              } catch (e) { /* ignore */ }
+            }
+          }
+
+          // Calculate stats
+          let totalScans = scans.length;
+          let spamDetected = scans.filter((scan: any) => scan.prediction === "spam").length;
+          let lastScan = "Never";
+          if (totalScans > 0 && scans[0] && typeof scans[0].timestamp === 'string') {
+            lastScan = new Date(scans[0].timestamp).toLocaleDateString();
+          }
+
+          setStats({
+            totalScans,
+            spamDetected,
+            lastScan
+          });
         } catch (error) {
           console.error("Error loading user data:", error)
           toast.error("Failed to load profile data")

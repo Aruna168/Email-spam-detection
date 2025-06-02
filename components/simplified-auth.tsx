@@ -151,9 +151,6 @@ export function SimplifiedAuth({ onAuthSuccess }: SimplifiedAuthProps) {
                 "Login"
               )}
             </Button>
-            <div className="text-center text-sm text-muted-foreground">
-              <p>Any email and password will work for demo purposes</p>
-            </div>
           </form>
         </Form>
       </TabsContent>
