@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # Spam Detector Application
+=======
+# Spam Detector
+>>>>>>> fe4eca827b679bc16513e78686e4db7531151f85
 
 This application provides email spam detection capabilities with both single email analysis and bulk analysis features.
 
@@ -81,6 +85,19 @@ The individual email analysis uses client-side processing when the server is una
 
 ## Development
 
+<<<<<<< HEAD
 - Frontend code is in the `components` directory
 - Backend code is in `app.py` and the `spam-detection-backend` directory
 - Models are stored as pickle files in the root directory
+=======
+```
+NEXT_PUBLIC_API_URL=http://localhost:5000
+```
+
+## Building for Production
+
+```bash
+# Build the frontend
+npm run build
+```
+>>>>>>> fe4eca827b679bc16513e78686e4db7531151f85
